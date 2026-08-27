@@ -911,6 +911,18 @@
         bal[t.accountId] = (bal[t.accountId]||0) - t.amount; // cashback reduces owed
       }
     });
+
+    // for pocketed accounts (like MAKE), the account's total = whatever sits directly on the
+    // "whole account" (opening balance + any un-pocketed transactions) PLUS the sum of all its pockets
+    state.accounts.forEach(a => {
+      if(a.hasPockets){
+        const pocketSum = state.pockets
+          .filter(p => p.accountId === a.id)
+          .reduce((s, p) => s + (pbal[p.id] || 0), 0);
+        bal[a.id] = (bal[a.id] || 0) + pocketSum;
+      }
+    });
+
     return {accounts: bal, pockets: pbal};
   }
 
