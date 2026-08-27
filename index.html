@@ -119,15 +119,18 @@
 
   /* Donut */
   .donut-wrap{display:flex;flex-direction:column;align-items:center;}
-  .donut-svg{width:198px;height:198px;}
+  .donut-ring-box{position:relative; width:198px; height:198px;}
+  .donut-svg{width:198px;height:198px; display:block;}
   .donut-center{
+    position:absolute;
+    top:0; left:0; right:0; bottom:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
     text-align:center;
-    margin-top:-140px;
-    margin-bottom:56px;
+    padding:0 16px;
     pointer-events:none;
   }
-  .donut-center .amt{font-size:24px;font-weight:700;font-family:'Space Mono',monospace;}
-  .donut-center .lbl{font-size:12px;color:var(--text-muted);margin-top:2px;}
+  .donut-center .amt{font-size:19px;font-weight:700;font-family:'Space Mono',monospace; line-height:1.15; word-break:break-word;}
+  .donut-center .lbl{font-size:12px;color:var(--text-muted);margin-top:3px;}
   .legend{width:100%;margin-top:6px;}
   .legend-row{
     display:flex;align-items:center;gap:10px;
@@ -416,10 +419,11 @@
   .split-diff.owe-them{background:var(--coral-bg); color:var(--coral);}
   .split-row{
     display:flex; align-items:center; gap:10px;
-    padding:11px 4px; border-bottom:1px solid var(--border); cursor:pointer;
+    padding:11px 4px; border-bottom:1px solid var(--border);
   }
   .split-row:last-child{border-bottom:none;}
-  .split-row-info{flex:1; min-width:0;}
+  .split-check{width:19px; height:19px; flex-shrink:0; accent-color:var(--navy);}
+  .split-row-info{flex:1; min-width:0; cursor:pointer;}
   .split-row-desc{font-size:14px; font-weight:600;}
   .split-row-meta{font-size:11.5px; color:var(--text-muted);}
   .split-row-amt{font-family:'Space Mono',monospace; font-size:14px; font-weight:700; white-space:nowrap;}
@@ -462,10 +466,12 @@
         </div>
       </div>
       <div class="donut-wrap">
-        <svg class="donut-svg" viewBox="0 0 120 120" id="donutSvg"></svg>
-        <div class="donut-center">
-          <div class="amt mono" id="donutTotal">฿0</div>
-          <div class="lbl" id="donutLabel">spent this month</div>
+        <div class="donut-ring-box">
+          <svg class="donut-svg" viewBox="0 0 120 120" id="donutSvg"></svg>
+          <div class="donut-center">
+            <div class="amt mono" id="donutTotal">฿0</div>
+            <div class="lbl" id="donutLabel">spent this month</div>
+          </div>
         </div>
         <div class="legend" id="legendList"></div>
       </div>
@@ -614,7 +620,7 @@
         </div>
         <div class="split-diff" id="splitDiffRow">All settled</div>
       </div>
-      <button class="link-btn" id="settleUpBtn" style="margin-top:10px;">Settle up (clear list)</button>
+      <button class="link-btn" id="settleUpBtn" style="margin-top:10px;">Settle up (clear checked)</button>
     </div>
     <div class="card" style="padding:10px 14px;">
       <div id="sharedList"></div>
@@ -844,24 +850,35 @@
     <div class="sheet-title" id="recurFormTitle">Add recurring bill</div>
     <form id="recurForm">
       <div class="field">
+        <label>Bill type</label>
+        <div class="seg-toggle-full" id="recurKindToggle">
+          <button type="button" data-kind="expense" class="active">Expense bill</button>
+          <button type="button" data-kind="card_payment">Credit card payment</button>
+        </div>
+      </div>
+      <div class="field">
         <label>Name</label>
         <input type="text" id="r_name" placeholder="e.g. Internet" required>
       </div>
       <div class="field">
-        <label>Amount (฿) — leave blank if it varies</label>
+        <label id="r_amountLabel">Amount (฿) — leave blank if it varies</label>
         <input type="number" step="0.01" class="amount" id="r_amount" placeholder="0.00">
       </div>
-      <div class="field">
+      <div class="field" id="r_categoryWrap">
         <label>Category</label>
         <select id="r_category"></select>
       </div>
       <div class="field">
-        <label>Paid from</label>
+        <label id="r_accountLabel">Paid from</label>
         <select id="r_account"></select>
       </div>
       <div class="field" id="r_pocketWrap" style="display:none;">
         <label>Pocket</label>
         <select id="r_pocket"></select>
+      </div>
+      <div class="field" id="r_toCardWrap" style="display:none;">
+        <label>Card to pay</label>
+        <select id="r_toCard"></select>
       </div>
       <div class="field">
         <label>Due day of month</label>
@@ -1574,6 +1591,7 @@
     if(state.recurring.length === 0){ card.style.display = 'none'; return; }
     card.style.display = 'block';
     const cycleKey = toISODate(viewCycleStart);
+    const balances = computeBalances();
     const items = state.recurring.map(r => ({
       bill: r,
       dueDate: billDueDateInCycle(r.dayOfMonth, viewCycleStart),
@@ -1581,16 +1599,28 @@
     })).sort((a,b) => a.dueDate - b.dueDate);
 
     list.innerHTML = items.map(({bill, dueDate, paid}) => {
-      const acct = state.accounts.find(a=>a.id===bill.accountId);
+      const isCard = bill.kind === 'card_payment';
       const dateLabel = dueDate.getDate() + ' ' + MONTH_ABBR[dueDate.getMonth()];
+      let metaText, liveDefaultAmount;
+      if(isCard){
+        const cardAcct = state.accounts.find(a=>a.id===bill.toAccountId);
+        const fromAcct = state.accounts.find(a=>a.id===bill.accountId);
+        metaText = `Due ${dateLabel} · Pay off ${cardAcct ? escapeHtml(cardAcct.name) : '—'}${fromAcct ? ' from '+escapeHtml(fromAcct.name) : ''}`;
+        liveDefaultAmount = cardAcct ? (balances.accounts[cardAcct.id] || 0) : 0;
+      } else {
+        const acct = state.accounts.find(a=>a.id===bill.accountId);
+        metaText = `Due ${dateLabel}${acct ? ' · '+escapeHtml(acct.name) : ''}`;
+        liveDefaultAmount = null;
+      }
+      const displayAmount = bill.amount != null ? bill.amount : liveDefaultAmount;
       const amountControl = privacyMode
         ? `<span class="recur-amt mono">••••</span>`
         : `<input type="number" step="0.01" class="recur-amt-input mono" data-bill-amt="${bill.id}"
-             value="${bill.amount!=null ? bill.amount : ''}" placeholder="0.00" ${paid ? 'disabled' : ''}>`;
+             value="${displayAmount != null ? displayAmount : ''}" placeholder="${isCard ? 'full balance' : '0.00'}" ${paid ? 'disabled' : ''}>`;
       return `<div class="recur-row">
         <div class="recur-info">
           <div class="recur-name">${escapeHtml(bill.name)}</div>
-          <div class="recur-meta">Due ${dateLabel}${acct ? ' · '+escapeHtml(acct.name) : ''}</div>
+          <div class="recur-meta">${metaText}</div>
         </div>
         ${amountControl}
         ${paid ? '<span class="recur-paid-badge">Paid</span>' : `<button class="recur-pay-btn" data-pay="${bill.id}">Log payment</button>`}
@@ -1613,8 +1643,13 @@
         if(!bill) return;
         const input = list.querySelector(`[data-bill-amt="${bill.id}"]`);
         const typedAmt = input ? parseFloat(input.value) : NaN;
-        const prefill = isNaN(typedAmt) ? bill : Object.assign({}, bill, {amount: typedAmt});
-        openTxnForm('expense', null, prefill);
+        const amount = isNaN(typedAmt) ? bill.amount : typedAmt;
+        if(bill.kind === 'card_payment'){
+          openTxnForm('transfer', null, Object.assign({}, bill, {amount}));
+        } else {
+          const prefill = isNaN(typedAmt) ? bill : Object.assign({}, bill, {amount: typedAmt});
+          openTxnForm('expense', null, prefill);
+        }
       });
     });
   }
@@ -1622,10 +1657,21 @@
   function renderRecurringManage(){
     const wrap = document.getElementById('recurringManageList');
     if(state.recurring.length === 0){
-      wrap.innerHTML = '<div class="empty-note" style="padding:8px 0;">No recurring bills yet — add ones like internet, electricity, or subscriptions.</div>';
+      wrap.innerHTML = '<div class="empty-note" style="padding:8px 0;">No recurring bills yet — add ones like internet, electricity, subscriptions, or a card to pay off each cycle.</div>';
       return;
     }
     wrap.innerHTML = state.recurring.map(r => {
+      if(r.kind === 'card_payment'){
+        const card = state.accounts.find(a=>a.id===r.toAccountId);
+        const fromAcct = state.accounts.find(a=>a.id===r.accountId);
+        return `<div class="recur-manage-row" data-edit="${r.id}">
+          <div class="recur-info">
+            <div class="recur-name">${escapeHtml(r.name)}</div>
+            <div class="recur-meta">Day ${r.dayOfMonth} · Pay ${card ? escapeHtml(card.name) : '—'}${fromAcct ? ' from '+escapeHtml(fromAcct.name) : ''}</div>
+          </div>
+          <span class="recur-amt mono">${r.amount ? fmt(r.amount) : 'full balance'}</span>
+        </div>`;
+      }
       const acct = state.accounts.find(a=>a.id===r.accountId);
       return `<div class="recur-manage-row" data-edit="${r.id}">
         <div class="recur-info">
@@ -1644,12 +1690,29 @@
   }
 
   /* ---------- Split / shared expense tracker ---------- */
+  let checkedSplitIds = new Set();
+  let knownSplitIds = new Set();
+
   function renderShared(){
     document.getElementById('splitMeLabel').textContent = 'You paid for ' + settings.partnerName;
     document.getElementById('splitPartnerLabel').textContent = settings.partnerName + ' paid for you';
 
-    const totalMe = state.shared.filter(s=>s.payer==='me').reduce((sum,s)=>sum+s.amount,0);
-    const totalPartner = state.shared.filter(s=>s.payer==='partner').reduce((sum,s)=>sum+s.amount,0);
+    // new entries default to checked; entries the user explicitly unchecked stay unchecked
+    // across re-renders; entries that got deleted elsewhere just drop out of both sets
+    const currentIds = new Set(state.shared.map(s=>s.id));
+    state.shared.forEach(s => {
+      if(!knownSplitIds.has(s.id)){
+        knownSplitIds.add(s.id);
+        checkedSplitIds.add(s.id);
+      }
+    });
+    [checkedSplitIds, knownSplitIds].forEach(set => {
+      Array.from(set).forEach(id => { if(!currentIds.has(id)) set.delete(id); });
+    });
+
+    const checkedEntries = state.shared.filter(s => checkedSplitIds.has(s.id));
+    const totalMe = checkedEntries.filter(s=>s.payer==='me').reduce((sum,s)=>sum+s.amount,0);
+    const totalPartner = checkedEntries.filter(s=>s.payer==='partner').reduce((sum,s)=>sum+s.amount,0);
     document.getElementById('splitMeTotal').textContent = fmt(totalMe);
     document.getElementById('splitPartnerTotal').textContent = fmt(totalPartner);
 
@@ -1673,15 +1736,23 @@
     }
     const sorted = [...state.shared].sort((a,b)=> b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
     list.innerHTML = sorted.map(s => `
-      <div class="split-row" data-id="${s.id}">
-        <div class="split-row-info">
+      <div class="split-row">
+        <input type="checkbox" class="split-check" data-check="${s.id}" ${checkedSplitIds.has(s.id) ? 'checked' : ''}>
+        <div class="split-row-info" data-id="${s.id}">
           <div class="split-row-desc">${escapeHtml(s.description)}</div>
           <div class="split-row-meta">${s.date} · ${s.payer==='me' ? 'You paid' : settings.partnerName + ' paid'}${s.linkedTxnId ? ' · linked to History' : ''}</div>
         </div>
         <div class="split-row-amt ${s.payer}">${fmt(s.amount)}</div>
       </div>
     `).join('');
-    list.querySelectorAll('.split-row').forEach(el => {
+    list.querySelectorAll('[data-check]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        if(cb.checked) checkedSplitIds.add(cb.dataset.check);
+        else checkedSplitIds.delete(cb.dataset.check);
+        renderShared();
+      });
+    });
+    list.querySelectorAll('.split-row-info').forEach(el => {
       el.addEventListener('click', () => {
         const s = state.shared.find(x=>x.id===el.dataset.id);
         if(s) openSplitForm(s);
@@ -1749,14 +1820,19 @@
   });
 
   document.getElementById('settleUpBtn').addEventListener('click', () => {
-    if(state.shared.length === 0){ toast('Nothing to settle'); return; }
-    if(!confirm('Clear the whole split list? Do this after you have actually settled up in real life.')) return;
-    const linkedIds = new Set(state.shared.filter(s=>s.linkedTxnId).map(s=>s.linkedTxnId));
+    const toClear = state.shared.filter(s => checkedSplitIds.has(s.id));
+    if(toClear.length === 0){ toast('No items checked'); return; }
+    const msg = toClear.length === state.shared.length
+      ? 'Clear the whole split list? Do this after you have actually settled up in real life.'
+      : `Clear the ${toClear.length} checked item(s)? Do this after you have actually settled up in real life.`;
+    if(!confirm(msg)) return;
+    const clearIds = new Set(toClear.map(s=>s.id));
+    const linkedIds = new Set(toClear.filter(s=>s.linkedTxnId).map(s=>s.linkedTxnId));
     state.transactions.forEach(t => { if(linkedIds.has(t.id)) delete t.linkedSharedId; });
-    state.shared = [];
+    state.shared = state.shared.filter(s => !clearIds.has(s.id));
     persistAll();
     renderAll();
-    toast('Settled — list cleared');
+    toast('Settled');
   });
 
   function renderAll(){
@@ -1920,9 +1996,11 @@
       fromLabel.textContent = 'From account';
       fromSel.innerHTML = buildAccountOptions(state.accounts, null);
       if(existingTxn) fromSel.value = valueForAccountPocket(existingTxn.accountId, existingTxn.pocketId);
+      else if(prefillBill) fromSel.value = valueForAccountPocket(prefillBill.accountId, prefillBill.pocketId);
       toWrap.style.display = 'block';
       toSel.innerHTML = buildAccountOptions(state.accounts, null);
       if(existingTxn) toSel.value = valueForAccountPocket(existingTxn.toAccountId, existingTxn.toPocketId);
+      else if(prefillBill) toSel.value = valueForAccountPocket(prefillBill.toAccountId, null);
     } else if(type === 'credit_adjust'){
       catWrap.style.display = 'none';
       fromLabel.textContent = 'Credit card';
@@ -2207,9 +2285,25 @@
   const recurOverlay = document.getElementById('recurSheetOverlay');
   const recurForm = document.getElementById('recurForm');
   let editingRecurId = null;
+  let recurKind = 'expense';
+
+  function applyRecurKindUI(){
+    const isCard = recurKind === 'card_payment';
+    document.getElementById('r_categoryWrap').style.display = isCard ? 'none' : 'block';
+    document.getElementById('r_toCardWrap').style.display = isCard ? 'block' : 'none';
+    document.getElementById('r_accountLabel').textContent = isCard ? 'Pay from' : 'Paid from';
+    document.getElementById('r_amountLabel').textContent = isCard
+      ? 'Fixed amount (leave blank to pay off the full balance each time)'
+      : 'Amount (฿) — leave blank if it varies';
+    document.querySelectorAll('#recurKindToggle button').forEach(b => b.classList.toggle('active', b.dataset.kind===recurKind));
+  }
+  document.querySelectorAll('#recurKindToggle button').forEach(btn => {
+    btn.addEventListener('click', () => { recurKind = btn.dataset.kind; applyRecurKindUI(); });
+  });
 
   function openRecurringForm(bill){
     editingRecurId = bill ? bill.id : null;
+    recurKind = bill ? (bill.kind || 'expense') : 'expense';
     document.getElementById('recurFormTitle').textContent = bill ? 'Edit recurring bill' : 'Add recurring bill';
     document.getElementById('r_name').value = bill ? bill.name : '';
     document.getElementById('r_amount').value = bill && bill.amount ? bill.amount : '';
@@ -2218,13 +2312,21 @@
 
     const catSel = document.getElementById('r_category');
     catSel.innerHTML = state.categories.expense.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-    if(bill) catSel.value = bill.categoryId;
+    if(bill && bill.categoryId) catSel.value = bill.categoryId;
+
+    const nonCredit = state.accounts.filter(a=>a.type!=='credit');
+    const creditAccts = state.accounts.filter(a=>a.type==='credit');
 
     const acctSel = document.getElementById('r_account');
-    acctSel.innerHTML = buildAccountOptions(state.accounts, null);
+    acctSel.innerHTML = buildAccountOptions(recurKind==='card_payment' ? nonCredit : state.accounts, null);
     if(bill) acctSel.value = valueForAccountPocket(bill.accountId, bill.pocketId);
 
+    const toCardSel = document.getElementById('r_toCard');
+    toCardSel.innerHTML = buildAccountOptions(creditAccts, null);
+    if(bill && bill.toAccountId) toCardSel.value = valueForAccountPocket(bill.toAccountId, null);
+
     document.getElementById('r_pocketWrap').style.display = 'none';
+    applyRecurKindUI();
 
     recurOverlay.classList.add('active');
   }
@@ -2238,19 +2340,30 @@
     if(!name){ toast('Enter a name'); return; }
     const amountRaw = document.getElementById('r_amount').value;
     const amount = amountRaw ? parseFloat(amountRaw) : null;
-    const categoryId = document.getElementById('r_category').value;
-    const parsed = parseAcctValue(document.getElementById('r_account').value);
-    const accountId = parsed.accountId;
-    const pocketId = parsed.pocketId;
     let dayOfMonth = parseInt(document.getElementById('r_day').value, 10);
     if(!dayOfMonth || dayOfMonth < 1) dayOfMonth = 1;
     if(dayOfMonth > 31) dayOfMonth = 31;
 
+    let billData;
+    if(recurKind === 'card_payment'){
+      const fromParsed = parseAcctValue(document.getElementById('r_account').value);
+      const toParsed = parseAcctValue(document.getElementById('r_toCard').value);
+      if(!fromParsed.accountId){ toast('Pick an account to pay from'); return; }
+      if(!toParsed.accountId){ toast('Pick a card to pay'); return; }
+      billData = {name, amount, kind: 'card_payment', accountId: fromParsed.accountId, pocketId: fromParsed.pocketId, toAccountId: toParsed.accountId, dayOfMonth};
+    } else {
+      const categoryId = document.getElementById('r_category').value;
+      const parsed = parseAcctValue(document.getElementById('r_account').value);
+      billData = {name, amount, kind: 'expense', categoryId, accountId: parsed.accountId, pocketId: parsed.pocketId, dayOfMonth};
+    }
+
     if(editingRecurId){
       const bill = state.recurring.find(r=>r.id===editingRecurId);
-      Object.assign(bill, {name, amount, categoryId, accountId, pocketId, dayOfMonth});
+      // clear out fields from the other kind so switching kind doesn't leave stale data behind
+      delete bill.categoryId; delete bill.toAccountId; delete bill.pocketId;
+      Object.assign(bill, billData);
     } else {
-      state.recurring.push({id: uid(), name, amount, categoryId, accountId, pocketId, dayOfMonth, lastPaidCycleStart: null});
+      state.recurring.push(Object.assign({id: uid(), lastPaidCycleStart: null}, billData));
     }
     persistAll();
     recurOverlay.classList.remove('active');
