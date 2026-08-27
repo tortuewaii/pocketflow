@@ -709,6 +709,30 @@
   </div>
 </div>
 
+<!-- POCKET EDIT SHEET -->
+<div class="sheet-overlay" id="pocketSheetOverlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Edit pocket</div>
+    <form id="pocketForm">
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="p_name" required>
+      </div>
+      <div class="field">
+        <label>Opening balance (฿)</label>
+        <input type="number" step="0.01" class="amount" id="p_balance" value="0">
+      </div>
+      <div class="btn-row">
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn-secondary" id="pocketDeleteBtn" style="width:100%;">Delete pocket</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- RECURRING BILL FORM SHEET -->
 <div class="sheet-overlay" id="recurSheetOverlay">
   <div class="sheet">
@@ -1111,7 +1135,9 @@
             const pb = balances.pockets[p.id] || 0;
             const pr = document.createElement('div');
             pr.className = 'pocket-row';
+            pr.style.cursor = 'pointer';
             pr.innerHTML = `<span class="pname">${escapeHtml(p.name)}</span><span class="pbal mono">${fmt(pb)}</span>`;
+            pr.addEventListener('click', () => openPocketForm(p));
             sub.appendChild(pr);
           });
         }
@@ -1521,6 +1547,37 @@
       options.map(o => `<option value="${o.id}">${escapeHtml(o.name)}</option>`).join('');
   }
 
+  // builds a flat <select> option list where pocketed accounts (like MAKE) show their
+  // pockets as selectable items directly, grouped under the account name via <optgroup>
+  function buildAccountOptions(accounts, placeholder){
+    let html = placeholder ? `<option value="">${placeholder}</option>` : '';
+    accounts.forEach(a => {
+      if(a.hasPockets){
+        const pockets = state.pockets.filter(p => p.accountId === a.id);
+        html += `<optgroup label="${escapeHtml(a.name)}">`;
+        html += `<option value="acct:${a.id}">— Whole account —</option>`;
+        pockets.forEach(p => { html += `<option value="pocket:${p.id}">${escapeHtml(p.name)}</option>`; });
+        html += `</optgroup>`;
+      } else {
+        html += `<option value="acct:${a.id}">${escapeHtml(a.name)}</option>`;
+      }
+    });
+    return html;
+  }
+  function parseAcctValue(v){
+    if(!v) return {accountId: null, pocketId: null};
+    if(v.indexOf('pocket:') === 0){
+      const pid = v.slice(7);
+      const p = state.pockets.find(x=>x.id===pid);
+      return {accountId: p ? p.accountId : null, pocketId: pid};
+    }
+    if(v.indexOf('acct:') === 0) return {accountId: v.slice(5), pocketId: null};
+    return {accountId: v, pocketId: null};
+  }
+  function valueForAccountPocket(accountId, pocketId){
+    return pocketId ? ('pocket:' + pocketId) : ('acct:' + (accountId || ''));
+  }
+
   const TYPE_TITLES = {expense:'expense', income:'income', transfer:'transfer', credit_adjust:'cashback'};
 
   function openTxnForm(type, existingTxn, prefillBill){
@@ -1559,9 +1616,7 @@
     const catLabel = document.getElementById('f_categoryLabel');
     const catGrid = document.getElementById('f_categoryGrid');
     const fromSel = document.getElementById('f_from');
-    const fromPocketSel = document.getElementById('f_fromPocket');
     const toSel = document.getElementById('f_to');
-    const toPocketSel = document.getElementById('f_toPocket');
 
     const nonCredit = state.accounts.filter(a=>a.type!=='credit');
     const creditAccts = state.accounts.filter(a=>a.type==='credit');
@@ -1569,61 +1624,39 @@
     catGrid.innerHTML = '';
     catWrap.style.display = 'block';
     fromPocketWrap.style.display = 'none';
-    toWrap.style.display = 'none';
     toPocketWrap.style.display = 'none';
+    toWrap.style.display = 'none';
 
     if(type === 'expense'){
       catLabel.textContent = 'Category';
       const selCat = existingTxn ? existingTxn.categoryId : (prefillBill ? prefillBill.categoryId : null);
       state.categories.expense.forEach(c => catGrid.appendChild(catOptEl(c, selCat)));
       fromLabel.textContent = 'Paid from';
-      fillSelect(fromSel, state.accounts, null);
-      if(existingTxn) fromSel.value = existingTxn.accountId;
-      else if(prefillBill) fromSel.value = prefillBill.accountId;
-      fromSel.onchange = () => togglePocketSelect(fromSel.value, fromPocketWrap, fromPocketSel);
-      togglePocketSelect(fromSel.value, fromPocketWrap, fromPocketSel, existingTxn ? existingTxn.pocketId : (prefillBill && prefillBill.pocketId));
+      fromSel.innerHTML = buildAccountOptions(state.accounts, null);
+      if(existingTxn) fromSel.value = valueForAccountPocket(existingTxn.accountId, existingTxn.pocketId);
+      else if(prefillBill) fromSel.value = valueForAccountPocket(prefillBill.accountId, prefillBill.pocketId);
     } else if(type === 'income'){
       catLabel.textContent = 'Category';
       state.categories.income.forEach(c => catGrid.appendChild(catOptEl(c, existingTxn && existingTxn.categoryId)));
       fromLabel.textContent = 'Into account';
-      fillSelect(fromSel, nonCredit, null);
-      if(existingTxn) fromSel.value = existingTxn.accountId;
-      fromSel.onchange = () => togglePocketSelect(fromSel.value, fromPocketWrap, fromPocketSel);
-      togglePocketSelect(fromSel.value, fromPocketWrap, fromPocketSel, existingTxn && existingTxn.pocketId);
+      fromSel.innerHTML = buildAccountOptions(nonCredit, null);
+      if(existingTxn) fromSel.value = valueForAccountPocket(existingTxn.accountId, existingTxn.pocketId);
     } else if(type === 'transfer'){
       catWrap.style.display = 'none';
       fromLabel.textContent = 'From account';
-      fillSelect(fromSel, state.accounts, null);
-      if(existingTxn) fromSel.value = existingTxn.accountId;
-      fromSel.onchange = () => togglePocketSelect(fromSel.value, fromPocketWrap, fromPocketSel);
-      togglePocketSelect(fromSel.value, fromPocketWrap, fromPocketSel, existingTxn && existingTxn.pocketId);
+      fromSel.innerHTML = buildAccountOptions(state.accounts, null);
+      if(existingTxn) fromSel.value = valueForAccountPocket(existingTxn.accountId, existingTxn.pocketId);
       toWrap.style.display = 'block';
-      fillSelect(toSel, state.accounts, null);
-      if(existingTxn) toSel.value = existingTxn.toAccountId;
-      toSel.onchange = () => togglePocketSelect(toSel.value, toPocketWrap, toPocketSel);
-      togglePocketSelect(toSel.value, toPocketWrap, toPocketSel, existingTxn && existingTxn.toPocketId);
+      toSel.innerHTML = buildAccountOptions(state.accounts, null);
+      if(existingTxn) toSel.value = valueForAccountPocket(existingTxn.toAccountId, existingTxn.toPocketId);
     } else if(type === 'credit_adjust'){
       catWrap.style.display = 'none';
       fromLabel.textContent = 'Credit card';
-      fillSelect(fromSel, creditAccts, null);
-      if(existingTxn) fromSel.value = existingTxn.accountId;
-      fromPocketWrap.style.display = 'none';
+      fromSel.innerHTML = buildAccountOptions(creditAccts, null);
+      if(existingTxn) fromSel.value = valueForAccountPocket(existingTxn.accountId, null);
     }
 
     formOverlay.classList.add('active');
-  }
-
-  function togglePocketSelect(accountId, wrapEl, selEl, selectedPocketId){
-    const acct = state.accounts.find(a=>a.id===accountId);
-    if(acct && acct.hasPockets){
-      const pockets = state.pockets.filter(p=>p.accountId===acct.id);
-      fillSelect(selEl, pockets, '(whole account, no specific pocket)');
-      if(selectedPocketId) selEl.value = selectedPocketId;
-      wrapEl.style.display = 'block';
-    } else {
-      wrapEl.style.display = 'none';
-      selEl.value = '';
-    }
   }
 
   function catOptEl(name, selectedName){
@@ -1710,24 +1743,25 @@
       if(!selectedCat){ toast('Pick a category'); return; }
       txn.categoryId = selectedCat.dataset.cat;
       const fromSel = document.getElementById('f_from');
-      const fromPocketSel = document.getElementById('f_fromPocket');
-      txn.accountId = fromSel.value;
+      const parsed = parseAcctValue(fromSel.value);
+      txn.accountId = parsed.accountId;
       if(!txn.accountId){ toast('Pick an account'); return; }
-      if(fromPocketSel.value) txn.pocketId = fromPocketSel.value;
+      if(parsed.pocketId) txn.pocketId = parsed.pocketId;
     } else if(currentTxnType === 'transfer'){
       const fromSel = document.getElementById('f_from');
-      const fromPocketSel = document.getElementById('f_fromPocket');
       const toSel = document.getElementById('f_to');
-      const toPocketSel = document.getElementById('f_toPocket');
-      txn.accountId = fromSel.value;
-      txn.toAccountId = toSel.value;
+      const fromParsed = parseAcctValue(fromSel.value);
+      const toParsed = parseAcctValue(toSel.value);
+      txn.accountId = fromParsed.accountId;
+      txn.toAccountId = toParsed.accountId;
       if(!txn.accountId || !txn.toAccountId){ toast('Pick both accounts'); return; }
-      if(txn.accountId === txn.toAccountId && fromPocketSel.value === toPocketSel.value){ toast('Pick different accounts or pockets'); return; }
-      if(fromPocketSel.value) txn.pocketId = fromPocketSel.value;
-      if(toPocketSel.value) txn.toPocketId = toPocketSel.value;
+      if(fromSel.value === toSel.value){ toast('Pick different accounts or pockets'); return; }
+      if(fromParsed.pocketId) txn.pocketId = fromParsed.pocketId;
+      if(toParsed.pocketId) txn.toPocketId = toParsed.pocketId;
     } else if(currentTxnType === 'credit_adjust'){
       const fromSel = document.getElementById('f_from');
-      txn.accountId = fromSel.value;
+      const parsed = parseAcctValue(fromSel.value);
+      txn.accountId = parsed.accountId;
       if(!txn.accountId){ toast('Pick a card'); return; }
       txn.categoryId = 'Cashback';
     }
@@ -1816,6 +1850,44 @@
     toast('Deleted');
   });
 
+  /* ---------- Pocket edit form (name + opening balance) ---------- */
+  const pocketOverlay = document.getElementById('pocketSheetOverlay');
+  const pocketForm = document.getElementById('pocketForm');
+  let editingPocketId = null;
+
+  function openPocketForm(pocket){
+    editingPocketId = pocket.id;
+    document.getElementById('p_name').value = pocket.name;
+    document.getElementById('p_balance').value = pocket.balance || 0;
+    pocketOverlay.classList.add('active');
+  }
+  pocketOverlay.addEventListener('click', e => { if(e.target===pocketOverlay) pocketOverlay.classList.remove('active'); });
+
+  pocketForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const name = document.getElementById('p_name').value.trim();
+    if(!name){ toast('Enter a name'); return; }
+    const balance = parseFloat(document.getElementById('p_balance').value) || 0;
+    const p = state.pockets.find(x=>x.id===editingPocketId);
+    if(p){ p.name = name; p.balance = balance; }
+    persistAll();
+    pocketOverlay.classList.remove('active');
+    renderAll();
+    toast('Saved');
+  });
+
+  document.getElementById('pocketDeleteBtn').addEventListener('click', () => {
+    if(!editingPocketId) return;
+    const used = state.transactions.some(t => t.pocketId===editingPocketId || t.toPocketId===editingPocketId);
+    if(used){ toast('Pocket has transactions — cannot delete'); return; }
+    if(!confirm('Delete this pocket?')) return;
+    state.pockets = state.pockets.filter(p=>p.id!==editingPocketId);
+    persistAll();
+    pocketOverlay.classList.remove('active');
+    renderAll();
+    toast('Deleted');
+  });
+
   /* ---------- Recurring bill form ---------- */
   const recurOverlay = document.getElementById('recurSheetOverlay');
   const recurForm = document.getElementById('recurForm');
@@ -1834,13 +1906,10 @@
     if(bill) catSel.value = bill.categoryId;
 
     const acctSel = document.getElementById('r_account');
-    fillSelect(acctSel, state.accounts, null);
-    if(bill) acctSel.value = bill.accountId;
+    acctSel.innerHTML = buildAccountOptions(state.accounts, null);
+    if(bill) acctSel.value = valueForAccountPocket(bill.accountId, bill.pocketId);
 
-    const pocketWrap = document.getElementById('r_pocketWrap');
-    const pocketSel = document.getElementById('r_pocket');
-    acctSel.onchange = () => togglePocketSelect(acctSel.value, pocketWrap, pocketSel);
-    togglePocketSelect(acctSel.value, pocketWrap, pocketSel, bill && bill.pocketId);
+    document.getElementById('r_pocketWrap').style.display = 'none';
 
     recurOverlay.classList.add('active');
   }
@@ -1855,9 +1924,9 @@
     const amountRaw = document.getElementById('r_amount').value;
     const amount = amountRaw ? parseFloat(amountRaw) : null;
     const categoryId = document.getElementById('r_category').value;
-    const accountId = document.getElementById('r_account').value;
-    const pocketSel = document.getElementById('r_pocket');
-    const pocketId = pocketSel.value || null;
+    const parsed = parseAcctValue(document.getElementById('r_account').value);
+    const accountId = parsed.accountId;
+    const pocketId = parsed.pocketId;
     let dayOfMonth = parseInt(document.getElementById('r_day').value, 10);
     if(!dayOfMonth || dayOfMonth < 1) dayOfMonth = 1;
     if(dayOfMonth > 31) dayOfMonth = 31;
