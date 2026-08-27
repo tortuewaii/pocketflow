@@ -1313,10 +1313,6 @@
     tagSel.value = prevTag;
 
     const cycleTxns = state.transactions.filter(t => inViewMonth(t.date));
-    const totalIncome = cycleTxns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-    const totalExpense = cycleTxns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-    document.getElementById('histIncome').textContent = fmt(totalIncome);
-    document.getElementById('histExpense').textContent = fmt(totalExpense);
 
     let filtered = cycleTxns.filter(t => {
       if(txnFilterAccount && t.accountId !== txnFilterAccount && t.toAccountId !== txnFilterAccount) return false;
@@ -1326,7 +1322,16 @@
       }
       if(txnFilterTag && (!t.tags || !t.tags.includes(txnFilterTag))) return false;
       return true;
-    }).sort((a,b)=> b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+    });
+
+    // summary totals reflect whatever filters are active, so e.g. filtering by a due-date
+    // tag shows exactly how much that batch adds up to
+    const totalIncome = filtered.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+    const totalExpense = filtered.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+    document.getElementById('histIncome').textContent = fmt(totalIncome);
+    document.getElementById('histExpense').textContent = fmt(totalExpense);
+
+    filtered = filtered.sort((a,b)=> b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
 
     const list = document.getElementById('txnList');
     if(filtered.length === 0){
