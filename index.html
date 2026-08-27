@@ -254,6 +254,12 @@
   }
   .order-row button:disabled{opacity:0.3; cursor:default;}
   .order-row button.odel{color:var(--coral);}
+  .order-row .rename-input{
+    flex:1; min-width:0; border:1px solid var(--navy); border-radius:8px;
+    padding:5px 8px; font-size:13.5px; background:var(--surface); color:var(--text);
+  }
+  .order-row .rename-confirm{color:var(--teal);}
+  .order-row .rename-cancel{color:var(--coral);}
   .add-inline{display:flex; gap:8px; margin-top:6px;}
   .add-inline input{flex:1;}
   .add-inline button.add-btn{
@@ -1234,36 +1240,68 @@
     const incWrap = document.getElementById('incCatChips');
     const pockWrap = document.getElementById('pocketChips');
 
-    renderOrderList(expWrap, state.categories.expense, (i, dir) => moveInArray(state.categories.expense, i, dir), (name) => {
-      const used = state.transactions.some(t => t.categoryId === name);
-      if(used){ toast('In use — cannot delete'); return; }
-      state.categories.expense = state.categories.expense.filter(c=>c!==name);
-      persistAll(); renderAll();
-    });
-    renderOrderList(incWrap, state.categories.income, (i, dir) => moveInArray(state.categories.income, i, dir), (name) => {
-      const used = state.transactions.some(t => t.categoryId === name);
-      if(used){ toast('In use — cannot delete'); return; }
-      state.categories.income = state.categories.income.filter(c=>c!==name);
-      persistAll(); renderAll();
-    });
+    renderOrderList(expWrap, state.categories.expense,
+      (i, dir) => { moveInArray(state.categories.expense, i, dir); persistAll(); renderAll(); },
+      (i) => {
+        const name = state.categories.expense[i];
+        const used = state.transactions.some(t => t.categoryId === name);
+        if(used){ toast('In use — cannot delete'); return; }
+        state.categories.expense.splice(i, 1);
+        persistAll(); renderAll();
+      },
+      (i, newName) => renameCategory('expense', i, newName)
+    );
+    renderOrderList(incWrap, state.categories.income,
+      (i, dir) => { moveInArray(state.categories.income, i, dir); persistAll(); renderAll(); },
+      (i) => {
+        const name = state.categories.income[i];
+        const used = state.transactions.some(t => t.categoryId === name);
+        if(used){ toast('In use — cannot delete'); return; }
+        state.categories.income.splice(i, 1);
+        persistAll(); renderAll();
+      },
+      (i, newName) => renameCategory('income', i, newName)
+    );
 
     const makeAccounts = state.accounts.filter(a=>a.hasPockets);
     if(makeAccounts.length === 0){
       pockWrap.innerHTML = '<div class="empty-note">Mark an account as "holds sub-pockets" first (in Accounts).</div>';
     } else {
-      renderOrderList(pockWrap, state.pockets.map(p=>p.name), (i, dir) => moveInArray(state.pockets, i, dir), (name) => {
-        const p = state.pockets.find(x=>x.name===name);
-        if(!p) return;
-        const used = state.transactions.some(t => t.pocketId===p.id || t.toPocketId===p.id);
-        if(used){ toast('In use — cannot delete'); return; }
-        state.pockets = state.pockets.filter(x=>x.id!==p.id);
-        persistAll(); renderAll();
-      });
+      renderOrderList(pockWrap, state.pockets.map(p=>p.name),
+        (i, dir) => { moveInArray(state.pockets, i, dir); persistAll(); renderAll(); },
+        (i) => {
+          const p = state.pockets[i];
+          const used = state.transactions.some(t => t.pocketId===p.id || t.toPocketId===p.id);
+          if(used){ toast('In use — cannot delete'); return; }
+          state.pockets.splice(i, 1);
+          persistAll(); renderAll();
+        },
+        (i, newName) => {
+          const p = state.pockets[i];
+          if(newName === p.name){ renderAll(); return; }
+          p.name = newName;
+          persistAll(); renderAll(); toast('Renamed');
+        }
+      );
     }
   }
 
+  // renaming a category cascades to every transaction and recurring bill that references the old name,
+  // since categories are matched by name text rather than a stable id
+  function renameCategory(kind, i, newName){
+    const oldName = state.categories[kind][i];
+    if(newName === oldName){ renderAll(); return; }
+    if(state.categories[kind].includes(newName)){ toast('Already exists'); renderAll(); return; }
+    state.categories[kind][i] = newName;
+    state.transactions.forEach(t => { if(t.type === kind && t.categoryId === oldName) t.categoryId = newName; });
+    if(kind === 'expense'){
+      state.recurring.forEach(r => { if(r.categoryId === oldName) r.categoryId = newName; });
+    }
+    persistAll(); renderAll(); toast('Renamed');
+  }
+
   // generic renderer: names is a plain array of display strings (order matches the underlying array)
-  function renderOrderList(container, names, onMove, onDelete){
+  function renderOrderList(container, names, onMove, onDelete, onRename){
     if(names.length === 0){
       container.innerHTML = '<div class="empty-note" style="padding:6px 0;">None yet.</div>';
       return;
@@ -1271,21 +1309,46 @@
     container.innerHTML = names.map((name, i) => `
       <div class="order-row">
         <span class="oname">${escapeHtml(name)}</span>
+        <button data-rename="${i}">✎</button>
         <button data-move="${i}:-1" ${i===0?'disabled':''}>▲</button>
         <button data-move="${i}:1" ${i===names.length-1?'disabled':''}>▼</button>
-        <button class="odel" data-del="${escapeHtml(name)}">✕</button>
+        <button class="odel" data-del="${i}">✕</button>
       </div>
     `).join('');
     container.querySelectorAll('[data-move]').forEach(btn => {
       btn.addEventListener('click', () => {
         const [i, dir] = btn.dataset.move.split(':').map(Number);
         onMove(i, dir);
-        persistAll();
-        renderAll();
       });
     });
     container.querySelectorAll('[data-del]').forEach(btn => {
-      btn.addEventListener('click', () => onDelete(btn.dataset.del));
+      btn.addEventListener('click', () => onDelete(parseInt(btn.dataset.del, 10)));
+    });
+    container.querySelectorAll('[data-rename]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const i = parseInt(btn.dataset.rename, 10);
+        const row = btn.closest('.order-row');
+        const oldName = names[i];
+        row.innerHTML = `
+          <input type="text" class="rename-input" value="${escapeHtml(oldName)}">
+          <button class="rename-confirm">✓</button>
+          <button class="rename-cancel">✕</button>
+        `;
+        const input = row.querySelector('.rename-input');
+        input.focus();
+        input.select();
+        const commit = () => {
+          const newName = input.value.trim();
+          if(!newName){ toast('Enter a name'); return; }
+          onRename(i, newName);
+        };
+        row.querySelector('.rename-confirm').addEventListener('click', commit);
+        row.querySelector('.rename-cancel').addEventListener('click', renderAll);
+        input.addEventListener('keydown', e => {
+          if(e.key === 'Enter'){ e.preventDefault(); commit(); }
+          if(e.key === 'Escape'){ renderAll(); }
+        });
+      });
     });
   }
 
