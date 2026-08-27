@@ -50,6 +50,10 @@
     top:12px;
     z-index:20;
   }
+  .app-title-row{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:14px;
+  }
   .app-title{
     font-family:'Quicksand',sans-serif;
     font-weight:700;
@@ -58,9 +62,16 @@
     display:flex;
     align-items:center;
     gap:8px;
-    margin-bottom:14px;
   }
   .app-title .dot{width:8px;height:8px;border-radius:50%;background:var(--teal);display:inline-block;}
+  .privacy-btn{
+    width:34px;height:34px;border-radius:50%;border:none;
+    background:rgba(255,255,255,0.12);color:#fff;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .privacy-btn:active{background:rgba(255,255,255,0.25);}
+  .privacy-btn svg{width:18px;height:18px;}
+  .privacy-btn.active{background:rgba(255,255,255,0.28);}
   .month-nav{
     display:flex;
     align-items:center;
@@ -219,6 +230,20 @@
     color:var(--text-muted); font-size:11px; cursor:pointer; display:flex; align-items:center;justify-content:center;
   }
   .chip-wrap{display:flex; flex-wrap:wrap;}
+  .order-list{display:flex; flex-direction:column;}
+  .order-row{
+    display:flex; align-items:center; gap:8px;
+    padding:8px 2px; border-bottom:1px solid var(--border);
+  }
+  .order-row:last-child{border-bottom:none;}
+  .order-row .oname{flex:1; font-size:13.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .order-row button{
+    border:none; background:var(--surface-2); color:var(--text-muted);
+    border-radius:8px; width:26px; height:26px; font-size:12px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .order-row button:disabled{opacity:0.3; cursor:default;}
+  .order-row button.odel{color:var(--coral);}
   .add-inline{display:flex; gap:8px; margin-top:6px;}
   .add-inline input{flex:1;}
   .add-inline button.add-btn{
@@ -342,7 +367,13 @@
 <body>
 
 <header class="app-header">
-  <div class="app-title"><span class="dot"></span>PocketFlow</div>
+  <div class="app-title-row">
+    <div class="app-title"><span class="dot"></span>PocketFlow</div>
+    <button id="privacyToggleBtn" class="privacy-btn" title="Hide amounts" aria-label="Hide amounts">
+      <svg id="eyeOpenIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+      <svg id="eyeOffIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0112 20c-7 0-11-8-11-8a21.6 21.6 0 015.06-6.06M9.9 4.24A10.94 10.94 0 0112 4c7 0 11 8 11 8a21.6 21.6 0 01-2.61 3.94M14.12 14.12a3 3 0 11-4.24-4.24"/><path d="M1 1l22 22"/></svg>
+    </button>
+  </div>
   <div class="month-nav">
     <button id="prevMonth">‹</button>
     <span class="month-label" id="monthLabel">August 2026</span>
@@ -457,24 +488,33 @@
       <button class="link-btn" id="addRecurringBtn" style="margin-top:4px;">+ Add recurring bill</button>
     </div>
     <div class="card">
-      <p class="card-title">Expense categories</p>
-      <div class="chip-wrap" id="expCatChips"></div>
+      <div class="section-header">
+        <p class="card-title" style="margin:0;">Expense categories</p>
+        <button class="link-btn" data-sort-az="expense">Sort A–Z</button>
+      </div>
+      <div class="order-list" id="expCatChips"></div>
       <div class="add-inline">
         <input type="text" id="newExpCat" placeholder="New expense category">
         <button class="add-btn" data-add="expense">Add</button>
       </div>
     </div>
     <div class="card">
-      <p class="card-title">Income categories</p>
-      <div class="chip-wrap" id="incCatChips"></div>
+      <div class="section-header">
+        <p class="card-title" style="margin:0;">Income categories</p>
+        <button class="link-btn" data-sort-az="income">Sort A–Z</button>
+      </div>
+      <div class="order-list" id="incCatChips"></div>
       <div class="add-inline">
         <input type="text" id="newIncCat" placeholder="New income category">
         <button class="add-btn" data-add="income">Add</button>
       </div>
     </div>
     <div class="card">
-      <p class="card-title">Pockets (inside MAKE)</p>
-      <div class="chip-wrap" id="pocketChips"></div>
+      <div class="section-header">
+        <p class="card-title" style="margin:0;">Pockets (inside MAKE)</p>
+        <button class="link-btn" data-sort-az="pocket">Sort A–Z</button>
+      </div>
+      <div class="order-list" id="pocketChips"></div>
       <div class="add-inline">
         <input type="text" id="newPocket" placeholder="New pocket name">
         <button class="add-btn" data-add="pocket">Add</button>
@@ -657,7 +697,8 @@
     categories: 'pocketflow_categories_v1',
     transactions: 'pocketflow_transactions_v1',
     settings: 'pocketflow_settings_v1',
-    recurring: 'pocketflow_recurring_v1'
+    recurring: 'pocketflow_recurring_v1',
+    privacy: 'pocketflow_privacy_v1'
   };
 
   function load(key, fallback){
@@ -677,18 +718,7 @@
 
   function seedData(){
     return {
-      accounts: [
-        {id:'kbank', name:'KBANK', type:'bank', balance:0, hasPockets:false},
-        {id:'make', name:'MAKE', type:'bank', balance:0, hasPockets:true},
-        {id:'kept', name:'KEPT', type:'bank', balance:0, hasPockets:false},
-        {id:'dime', name:'DIME', type:'bank', balance:10000, hasPockets:false},
-        {id:'lhb', name:'LHB', type:'bank', balance:0, hasPockets:false},
-        {id:'paotang', name:'PaoTang', type:'bank', balance:0, hasPockets:false},
-        {id:'cash', name:'Cash', type:'cash', balance:0, hasPockets:false},
-        {id:'ktc', name:'KTC', type:'credit', balance:0, hasPockets:false},
-        {id:'kbank_cc', name:'KBANK Credit', type:'credit', balance:0, hasPockets:false},
-        {id:'ttb_cc', name:'TTB', type:'credit', balance:0, hasPockets:false}
-      ],
+      accounts: [],
       pockets: [],
       categories: {
         expense: ['Food & Drinks','Transport','Subscriptions','Water','Electricity','Phone','Healthcare','Car Repair','Insurance','Shopping','Fitness','Treat Yourself','Other'],
@@ -749,7 +779,10 @@
     if(changed) persistAll();
   })();
 
+  let privacyMode = load(LS.privacy, false);
+
   function fmt(n){
+    if(privacyMode) return '฿••••';
     const v = Math.round((n||0) * 100) / 100;
     return '฿' + v.toLocaleString('en-US', {minimumFractionDigits: v % 1 !== 0 ? 2 : 0, maximumFractionDigits:2});
   }
@@ -946,10 +979,14 @@
 
     // accounts snapshot
     const list = document.getElementById('homeAcctList');
-    list.innerHTML = '';
-    state.accounts.forEach(a => {
-      list.appendChild(acctRowEl(a, balances));
-    });
+    if(state.accounts.length === 0){
+      list.innerHTML = '<div class="empty-note">No accounts yet — add your first one in the Accounts tab.</div>';
+    } else {
+      list.innerHTML = '';
+      state.accounts.forEach(a => {
+        list.appendChild(acctRowEl(a, balances));
+      });
+    }
   }
 
   function escapeHtml(s){
@@ -989,7 +1026,11 @@
     bankList.innerHTML = '';
     creditList.innerHTML = '';
 
-    state.accounts.filter(a => a.type !== 'credit').forEach(a => {
+    const bankAccts = state.accounts.filter(a => a.type !== 'credit');
+    if(bankAccts.length === 0){
+      bankList.innerHTML = '<div class="empty-note" style="padding:6px 0;">No bank or cash accounts yet — tap "+ Add account" below.</div>';
+    }
+    bankAccts.forEach(a => {
       const wrap = document.createElement('div');
       const row = acctRowEl(a, balances);
       row.addEventListener('click', () => openAccountForm(a));
@@ -1014,7 +1055,11 @@
       bankList.appendChild(wrap);
     });
 
-    state.accounts.filter(a => a.type === 'credit').forEach(a => {
+    const creditAccts = state.accounts.filter(a => a.type === 'credit');
+    if(creditAccts.length === 0){
+      creditList.innerHTML = '<div class="empty-note" style="padding:6px 0;">No credit cards yet.</div>';
+    }
+    creditAccts.forEach(a => {
       const row = acctRowEl(a, balances);
       row.addEventListener('click', () => openAccountForm(a));
       creditList.appendChild(row);
@@ -1111,47 +1156,79 @@
     const expWrap = document.getElementById('expCatChips');
     const incWrap = document.getElementById('incCatChips');
     const pockWrap = document.getElementById('pocketChips');
-    expWrap.innerHTML = '';
-    incWrap.innerHTML = '';
-    pockWrap.innerHTML = '';
 
-    state.categories.expense.forEach(c => expWrap.appendChild(catChip(c,'expense')));
-    state.categories.income.forEach(c => incWrap.appendChild(catChip(c,'income')));
+    renderOrderList(expWrap, state.categories.expense, (i, dir) => moveInArray(state.categories.expense, i, dir), (name) => {
+      const used = state.transactions.some(t => t.categoryId === name);
+      if(used){ toast('In use — cannot delete'); return; }
+      state.categories.expense = state.categories.expense.filter(c=>c!==name);
+      persistAll(); renderAll();
+    });
+    renderOrderList(incWrap, state.categories.income, (i, dir) => moveInArray(state.categories.income, i, dir), (name) => {
+      const used = state.transactions.some(t => t.categoryId === name);
+      if(used){ toast('In use — cannot delete'); return; }
+      state.categories.income = state.categories.income.filter(c=>c!==name);
+      persistAll(); renderAll();
+    });
 
     const makeAccounts = state.accounts.filter(a=>a.hasPockets);
     if(makeAccounts.length === 0){
       pockWrap.innerHTML = '<div class="empty-note">Mark an account as "holds sub-pockets" first (in Accounts).</div>';
     } else {
-      state.pockets.forEach(p => {
-        const chip = document.createElement('span');
-        chip.className = 'tag-chip';
-        chip.innerHTML = `${escapeHtml(p.name)} <button data-del-pocket="${p.id}">✕</button>`;
-        pockWrap.appendChild(chip);
-      });
-      pockWrap.querySelectorAll('[data-del-pocket]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const id = btn.dataset.delPocket;
-          const used = state.transactions.some(t => t.pocketId===id || t.toPocketId===id);
-          if(used){ toast('In use — cannot delete'); return; }
-          state.pockets = state.pockets.filter(p=>p.id!==id);
-          persistAll(); renderAll();
-        });
+      renderOrderList(pockWrap, state.pockets.map(p=>p.name), (i, dir) => moveInArray(state.pockets, i, dir), (name) => {
+        const p = state.pockets.find(x=>x.name===name);
+        if(!p) return;
+        const used = state.transactions.some(t => t.pocketId===p.id || t.toPocketId===p.id);
+        if(used){ toast('In use — cannot delete'); return; }
+        state.pockets = state.pockets.filter(x=>x.id!==p.id);
+        persistAll(); renderAll();
       });
     }
   }
 
-  function catChip(name, kind){
-    const chip = document.createElement('span');
-    chip.className = 'tag-chip';
-    chip.innerHTML = `${escapeHtml(name)} <button data-del-cat="${escapeHtml(name)}" data-kind="${kind}">✕</button>`;
-    chip.querySelector('button').addEventListener('click', () => {
-      const used = state.transactions.some(t => t.categoryId === name);
-      if(used){ toast('In use — cannot delete'); return; }
-      state.categories[kind] = state.categories[kind].filter(c=>c!==name);
-      persistAll(); renderAll();
+  // generic renderer: names is a plain array of display strings (order matches the underlying array)
+  function renderOrderList(container, names, onMove, onDelete){
+    if(names.length === 0){
+      container.innerHTML = '<div class="empty-note" style="padding:6px 0;">None yet.</div>';
+      return;
+    }
+    container.innerHTML = names.map((name, i) => `
+      <div class="order-row">
+        <span class="oname">${escapeHtml(name)}</span>
+        <button data-move="${i}:-1" ${i===0?'disabled':''}>▲</button>
+        <button data-move="${i}:1" ${i===names.length-1?'disabled':''}>▼</button>
+        <button class="odel" data-del="${escapeHtml(name)}">✕</button>
+      </div>
+    `).join('');
+    container.querySelectorAll('[data-move]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [i, dir] = btn.dataset.move.split(':').map(Number);
+        onMove(i, dir);
+        persistAll();
+        renderAll();
+      });
     });
-    return chip;
+    container.querySelectorAll('[data-del]').forEach(btn => {
+      btn.addEventListener('click', () => onDelete(btn.dataset.del));
+    });
   }
+
+  function moveInArray(arr, i, dir){
+    const j = i + dir;
+    if(j < 0 || j >= arr.length) return;
+    const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+  }
+
+  document.querySelectorAll('[data-sort-az]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const kind = btn.dataset.sortAz;
+      if(kind === 'expense') state.categories.expense.sort((a,b)=>a.localeCompare(b));
+      else if(kind === 'income') state.categories.income.sort((a,b)=>a.localeCompare(b));
+      else if(kind === 'pocket') state.pockets.sort((a,b)=>a.name.localeCompare(b.name));
+      persistAll();
+      renderAll();
+      toast('Sorted A–Z');
+    });
+  });
 
   document.getElementById('cycleStartDayInput').addEventListener('change', function(){
     let v = parseInt(this.value, 10);
@@ -1204,13 +1281,16 @@
     list.innerHTML = items.map(({bill, dueDate, paid}) => {
       const acct = state.accounts.find(a=>a.id===bill.accountId);
       const dateLabel = dueDate.getDate() + ' ' + MONTH_ABBR[dueDate.getMonth()];
+      const amountControl = privacyMode
+        ? `<span class="recur-amt mono">••••</span>`
+        : `<input type="number" step="0.01" class="recur-amt-input mono" data-bill-amt="${bill.id}"
+             value="${bill.amount!=null ? bill.amount : ''}" placeholder="0.00" ${paid ? 'disabled' : ''}>`;
       return `<div class="recur-row">
         <div class="recur-info">
           <div class="recur-name">${escapeHtml(bill.name)}</div>
           <div class="recur-meta">Due ${dateLabel}${acct ? ' · '+escapeHtml(acct.name) : ''}</div>
         </div>
-        <input type="number" step="0.01" class="recur-amt-input mono" data-bill-amt="${bill.id}"
-          value="${bill.amount!=null ? bill.amount : ''}" placeholder="0.00" ${paid ? 'disabled' : ''}>
+        ${amountControl}
         ${paid ? '<span class="recur-paid-badge">Paid</span>' : `<button class="recur-pay-btn" data-pay="${bill.id}">Log payment</button>`}
       </div>`;
     }).join('');
@@ -1596,7 +1676,23 @@
     toast('Deleted');
   });
 
+  /* ---------- Privacy mode (hide amounts for screenshots) ---------- */
+  function applyPrivacyBtnVisual(){
+    const btn = document.getElementById('privacyToggleBtn');
+    btn.classList.toggle('active', privacyMode);
+    document.getElementById('eyeOpenIcon').style.display = privacyMode ? 'none' : 'block';
+    document.getElementById('eyeOffIcon').style.display = privacyMode ? 'block' : 'none';
+  }
+  document.getElementById('privacyToggleBtn').addEventListener('click', () => {
+    privacyMode = !privacyMode;
+    save(LS.privacy, privacyMode);
+    applyPrivacyBtnVisual();
+    renderAll();
+    toast(privacyMode ? 'Amounts hidden' : 'Amounts visible');
+  });
+
   /* ---------- init ---------- */
+  applyPrivacyBtnVisual();
   renderMonthLabel();
   renderAll();
 })();
