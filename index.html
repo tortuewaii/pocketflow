@@ -273,15 +273,16 @@
     background:var(--surface);
     border-top:1px solid var(--border);
     display:flex;
-    padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+    padding:8px 2px calc(8px + env(safe-area-inset-bottom));
     z-index:30;
   }
   nav.bottom-nav button{
     flex:1; background:none; border:none; cursor:pointer;
-    display:flex; flex-direction:column; align-items:center; gap:3px;
-    padding:6px 0; color:var(--text-muted); font-size:11px; font-weight:600;
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+    padding:6px 0; color:var(--text-muted); font-size:10px; font-weight:600;
+    min-width:0;
   }
-  nav.bottom-nav button svg{width:21px;height:21px;}
+  nav.bottom-nav button svg{width:19px;height:19px;}
   nav.bottom-nav button.active{color:var(--navy);}
   nav.bottom-nav button.active svg{stroke:var(--navy);}
 
@@ -403,6 +404,33 @@
     padding:10px 4px; border-bottom:1px solid var(--border); cursor:pointer;
   }
   .recur-manage-row:last-child{border-bottom:none;}
+  .split-summary-row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:8px 0; font-size:13.5px; color:var(--text-muted);
+  }
+  .split-summary-row .mono{color:var(--text); font-weight:700; font-size:14px;}
+  .split-diff{
+    margin-top:8px; padding:12px; border-radius:var(--radius-sm);
+    background:var(--teal-bg); color:var(--navy); font-weight:700; font-size:15px; text-align:center;
+  }
+  .split-diff.owe-them{background:var(--coral-bg); color:var(--coral);}
+  .split-row{
+    display:flex; align-items:center; gap:10px;
+    padding:11px 4px; border-bottom:1px solid var(--border); cursor:pointer;
+  }
+  .split-row:last-child{border-bottom:none;}
+  .split-row-info{flex:1; min-width:0;}
+  .split-row-desc{font-size:14px; font-weight:600;}
+  .split-row-meta{font-size:11.5px; color:var(--text-muted);}
+  .split-row-amt{font-family:'Space Mono',monospace; font-size:14px; font-weight:700; white-space:nowrap;}
+  .split-row-amt.me{color:var(--teal);}
+  .split-row-amt.partner{color:var(--coral);}
+  .seg-toggle-full{display:flex; background:var(--surface-2); border-radius:999px; padding:3px; width:100%;}
+  .seg-toggle-full button{
+    flex:1; border:none; background:none; padding:9px 0; font-size:13px; font-weight:700;
+    border-radius:999px; color:var(--text-muted); cursor:pointer;
+  }
+  .seg-toggle-full button.active{background:var(--navy); color:#fff;}
 </style>
 </head>
 <body>
@@ -562,6 +590,35 @@
         <button class="add-btn" data-add="pocket">Add</button>
       </div>
     </div>
+    <div class="card">
+      <p class="card-title">Split tracker</p>
+      <div class="field" style="margin-bottom:0;">
+        <label>Partner's name</label>
+        <input type="text" id="partnerNameInput" placeholder="e.g. Bee" style="max-width:220px;">
+      </div>
+    </div>
+  </section>
+
+  <!-- SHARED / SPLIT TRACKER -->
+  <section class="view" id="view-shared">
+    <div class="card">
+      <p class="card-title">Running balance</p>
+      <div class="split-summary">
+        <div class="split-summary-row">
+          <span id="splitMeLabel">You paid for partner</span>
+          <span class="mono" id="splitMeTotal">฿0</span>
+        </div>
+        <div class="split-summary-row">
+          <span id="splitPartnerLabel">Partner paid for you</span>
+          <span class="mono" id="splitPartnerTotal">฿0</span>
+        </div>
+        <div class="split-diff" id="splitDiffRow">All settled</div>
+      </div>
+      <button class="link-btn" id="settleUpBtn" style="margin-top:10px;">Settle up (clear list)</button>
+    </div>
+    <div class="card" style="padding:10px 14px;">
+      <div id="sharedList"></div>
+    </div>
   </section>
 </main>
 
@@ -584,6 +641,10 @@
   <button data-nav="settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.6V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.6-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.6V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.6 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.6 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.6 1z"/></svg>
     Categories
+  </button>
+  <button data-nav="shared">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+    Split
   </button>
 </nav>
 
@@ -662,6 +723,14 @@
         <input type="text" id="f_tags" placeholder="e.g. delivery, urgent">
         <div class="chip-wrap" id="f_tagSuggestions" style="margin-top:8px;"></div>
       </div>
+      <div class="field" id="f_splitWrap" style="display:none;">
+        <label style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+          <input type="checkbox" id="f_splitCheck" style="width:auto;"> <span id="f_splitLabel">Split with Partner</span>
+        </label>
+        <div id="f_splitAmountWrap" style="display:none;">
+          <input type="number" step="0.01" class="amount" id="f_splitAmount" placeholder="Amount they owe">
+        </div>
+      </div>
       <div class="btn-row">
         <button type="submit" class="btn-primary">Save</button>
       </div>
@@ -733,6 +802,41 @@
   </div>
 </div>
 
+<!-- SPLIT / SHARED ENTRY FORM SHEET -->
+<div class="sheet-overlay" id="splitSheetOverlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="splitFormTitle">Add split entry</div>
+    <form id="splitForm">
+      <div class="field">
+        <label>Who paid?</label>
+        <div class="seg-toggle-full" id="splitPayerToggle">
+          <button type="button" data-payer="me" class="active">Me</button>
+          <button type="button" data-payer="partner">Partner</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Amount (฿)</label>
+        <input type="number" inputmode="decimal" step="0.01" class="amount" id="s_amount" placeholder="0.00" required>
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <input type="text" id="s_desc" placeholder="e.g. Streaming subscription" required>
+      </div>
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="s_date" required>
+      </div>
+      <div class="btn-row">
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+      <div class="btn-row" id="splitDeleteRow" style="display:none;">
+        <button type="button" class="btn-secondary" id="splitDeleteBtn" style="width:100%;">Delete entry</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- RECURRING BILL FORM SHEET -->
 <div class="sheet-overlay" id="recurSheetOverlay">
   <div class="sheet">
@@ -787,7 +891,8 @@
     transactions: 'pocketflow_transactions_v1',
     settings: 'pocketflow_settings_v1',
     recurring: 'pocketflow_recurring_v1',
-    privacy: 'pocketflow_privacy_v1'
+    privacy: 'pocketflow_privacy_v1',
+    shared: 'pocketflow_shared_v1'
   };
 
   function load(key, fallback){
@@ -823,7 +928,8 @@
     pockets: load(LS.pockets, null),
     categories: load(LS.categories, null),
     transactions: load(LS.transactions, null),
-    recurring: load(LS.recurring, null)
+    recurring: load(LS.recurring, null),
+    shared: load(LS.shared, null)
   };
   if(state.accounts === null || state.categories === null || state.transactions === null || state.pockets === null){
     const seed = seedData();
@@ -834,6 +940,7 @@
     persistAll();
   }
   if(state.recurring === null){ state.recurring = []; save(LS.recurring, state.recurring); }
+  if(state.shared === null){ state.shared = []; save(LS.shared, state.shared); }
 
   function persistAll(){
     save(LS.accounts, state.accounts);
@@ -841,6 +948,7 @@
     save(LS.categories, state.categories);
     save(LS.transactions, state.transactions);
     save(LS.recurring, state.recurring);
+    save(LS.shared, state.shared);
   }
 
   // one-time migration: rename old Thai default labels to English equivalents
@@ -929,6 +1037,7 @@
   /* ---------- settings (spending cycle) ---------- */
   let settings = load(LS.settings, null);
   if(!settings){ settings = {cycleStartDay: 30}; save(LS.settings, settings); }
+  if(!settings.partnerName){ settings.partnerName = 'Partner'; save(LS.settings, settings); }
 
   function daysInMonth(year, month){ return new Date(year, month+1, 0).getDate(); }
   function clampDay(year, month, day){ return Math.min(day, daysInMonth(year, month)); }
@@ -984,8 +1093,10 @@
   }
 
   /* ---------- navigation ---------- */
-  const views = ['home','accounts','transactions','settings'];
+  const views = ['home','accounts','transactions','settings','shared'];
+  let currentView = 'home';
   function showView(name){
+    currentView = name;
     views.forEach(v => {
       document.getElementById('view-'+v).classList.toggle('active', v === name);
     });
@@ -1273,6 +1384,8 @@
   function renderSettings(){
     const cycleInput = document.getElementById('cycleStartDayInput');
     if(document.activeElement !== cycleInput) cycleInput.value = settings.cycleStartDay;
+    const partnerInput = document.getElementById('partnerNameInput');
+    if(document.activeElement !== partnerInput) partnerInput.value = settings.partnerName;
 
     const expWrap = document.getElementById('expCatChips');
     const incWrap = document.getElementById('incCatChips');
@@ -1420,6 +1533,12 @@
     toast('Cycle updated');
   });
 
+  document.getElementById('partnerNameInput').addEventListener('change', function(){
+    settings.partnerName = this.value.trim() || 'Partner';
+    save(LS.settings, settings);
+    renderAll();
+  });
+
   document.querySelectorAll('.add-btn[data-add]').forEach(btn => {
     btn.addEventListener('click', () => {
       const kind = btn.dataset.add;
@@ -1519,6 +1638,122 @@
     });
   }
 
+  /* ---------- Split / shared expense tracker ---------- */
+  function renderShared(){
+    document.getElementById('splitMeLabel').textContent = 'You paid for ' + settings.partnerName;
+    document.getElementById('splitPartnerLabel').textContent = settings.partnerName + ' paid for you';
+
+    const totalMe = state.shared.filter(s=>s.payer==='me').reduce((sum,s)=>sum+s.amount,0);
+    const totalPartner = state.shared.filter(s=>s.payer==='partner').reduce((sum,s)=>sum+s.amount,0);
+    document.getElementById('splitMeTotal').textContent = fmt(totalMe);
+    document.getElementById('splitPartnerTotal').textContent = fmt(totalPartner);
+
+    const diff = totalMe - totalPartner;
+    const diffEl = document.getElementById('splitDiffRow');
+    if(Math.abs(diff) < 0.005){
+      diffEl.textContent = 'All settled';
+      diffEl.className = 'split-diff';
+    } else if(diff > 0){
+      diffEl.textContent = settings.partnerName + ' owes you ' + fmt(diff);
+      diffEl.className = 'split-diff';
+    } else {
+      diffEl.textContent = 'You owe ' + settings.partnerName + ' ' + fmt(-diff);
+      diffEl.className = 'split-diff owe-them';
+    }
+
+    const list = document.getElementById('sharedList');
+    if(state.shared.length === 0){
+      list.innerHTML = '<div class="empty-state">No split entries yet.<br>Tap the + button to add one.</div>';
+      return;
+    }
+    const sorted = [...state.shared].sort((a,b)=> b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+    list.innerHTML = sorted.map(s => `
+      <div class="split-row" data-id="${s.id}">
+        <div class="split-row-info">
+          <div class="split-row-desc">${escapeHtml(s.description)}</div>
+          <div class="split-row-meta">${s.date} · ${s.payer==='me' ? 'You paid' : settings.partnerName + ' paid'}${s.linkedTxnId ? ' · linked to History' : ''}</div>
+        </div>
+        <div class="split-row-amt ${s.payer}">${fmt(s.amount)}</div>
+      </div>
+    `).join('');
+    list.querySelectorAll('.split-row').forEach(el => {
+      el.addEventListener('click', () => {
+        const s = state.shared.find(x=>x.id===el.dataset.id);
+        if(s) openSplitForm(s);
+      });
+    });
+  }
+
+  const splitOverlay = document.getElementById('splitSheetOverlay');
+  const splitForm = document.getElementById('splitForm');
+  let editingSplitId = null;
+  let splitPayer = 'me';
+
+  function openSplitForm(entry){
+    editingSplitId = entry ? entry.id : null;
+    splitPayer = entry ? entry.payer : 'me';
+    document.getElementById('splitFormTitle').textContent = entry ? 'Edit split entry' : 'Add split entry';
+    document.getElementById('s_amount').value = entry ? entry.amount : '';
+    document.getElementById('s_desc').value = entry ? entry.description : '';
+    document.getElementById('s_date').value = entry ? entry.date : new Date().toISOString().slice(0,10);
+    document.getElementById('splitDeleteRow').style.display = entry ? 'flex' : 'none';
+    document.querySelectorAll('#splitPayerToggle button').forEach(b => b.classList.toggle('active', b.dataset.payer===splitPayer));
+    splitOverlay.classList.add('active');
+  }
+  document.querySelectorAll('#splitPayerToggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      splitPayer = btn.dataset.payer;
+      document.querySelectorAll('#splitPayerToggle button').forEach(b => b.classList.toggle('active', b===btn));
+    });
+  });
+  splitOverlay.addEventListener('click', e => { if(e.target===splitOverlay) splitOverlay.classList.remove('active'); });
+
+  splitForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const amount = parseFloat(document.getElementById('s_amount').value);
+    if(!amount || amount <= 0){ toast('Enter a valid amount'); return; }
+    const description = document.getElementById('s_desc').value.trim();
+    if(!description){ toast('Enter a description'); return; }
+    const date = document.getElementById('s_date').value;
+    const entry = {id: editingSplitId || uid(), amount, description, date, payer: splitPayer};
+    if(editingSplitId){
+      const idx = state.shared.findIndex(s=>s.id===editingSplitId);
+      if(idx > -1) state.shared[idx] = entry;
+    } else {
+      state.shared.push(entry);
+    }
+    persistAll();
+    splitOverlay.classList.remove('active');
+    renderAll();
+    toast('Saved');
+  });
+
+  document.getElementById('splitDeleteBtn').addEventListener('click', () => {
+    if(!editingSplitId) return;
+    if(!confirm('Delete this split entry?')) return;
+    const entry = state.shared.find(s=>s.id===editingSplitId);
+    if(entry && entry.linkedTxnId){
+      const linkedTxn = state.transactions.find(t=>t.id===entry.linkedTxnId);
+      if(linkedTxn) delete linkedTxn.linkedSharedId;
+    }
+    state.shared = state.shared.filter(s=>s.id!==editingSplitId);
+    persistAll();
+    splitOverlay.classList.remove('active');
+    renderAll();
+    toast('Deleted');
+  });
+
+  document.getElementById('settleUpBtn').addEventListener('click', () => {
+    if(state.shared.length === 0){ toast('Nothing to settle'); return; }
+    if(!confirm('Clear the whole split list? Do this after you have actually settled up in real life.')) return;
+    const linkedIds = new Set(state.shared.filter(s=>s.linkedTxnId).map(s=>s.linkedTxnId));
+    state.transactions.forEach(t => { if(linkedIds.has(t.id)) delete t.linkedSharedId; });
+    state.shared = [];
+    persistAll();
+    renderAll();
+    toast('Settled — list cleared');
+  });
+
   function renderAll(){
     renderHome();
     renderRecurringHome();
@@ -1526,6 +1761,7 @@
     renderTransactions();
     renderSettings();
     renderRecurringManage();
+    renderShared();
   }
 
   document.querySelectorAll('#donutToggle button').forEach(btn => {
@@ -1538,7 +1774,10 @@
 
   /* ---------- Action sheet (add) ---------- */
   const actionOverlay = document.getElementById('actionSheetOverlay');
-  document.getElementById('fabBtn').addEventListener('click', () => actionOverlay.classList.add('active'));
+  document.getElementById('fabBtn').addEventListener('click', () => {
+    if(currentView === 'shared') openSplitForm(null);
+    else actionOverlay.classList.add('active');
+  });
   actionOverlay.addEventListener('click', e => { if(e.target===actionOverlay) actionOverlay.classList.remove('active'); });
   actionOverlay.querySelectorAll('[data-open]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1639,6 +1878,16 @@
     toPocketWrap.style.display = 'none';
     toWrap.style.display = 'none';
 
+    const splitWrap = document.getElementById('f_splitWrap');
+    const splitCheck = document.getElementById('f_splitCheck');
+    const splitAmountWrap = document.getElementById('f_splitAmountWrap');
+    const splitAmountInput = document.getElementById('f_splitAmount');
+    document.getElementById('f_splitLabel').textContent = 'Split with ' + settings.partnerName;
+    splitWrap.style.display = 'none';
+    splitCheck.checked = false;
+    splitAmountWrap.style.display = 'none';
+    splitAmountInput.value = '';
+
     if(type === 'expense'){
       catLabel.textContent = 'Category';
       const selCat = existingTxn ? existingTxn.categoryId : (prefillBill ? prefillBill.categoryId : null);
@@ -1647,6 +1896,14 @@
       fromSel.innerHTML = buildAccountOptions(state.accounts, null);
       if(existingTxn) fromSel.value = valueForAccountPocket(existingTxn.accountId, existingTxn.pocketId);
       else if(prefillBill) fromSel.value = valueForAccountPocket(prefillBill.accountId, prefillBill.pocketId);
+
+      splitWrap.style.display = 'block';
+      const linkedShared = existingTxn && existingTxn.linkedSharedId ? state.shared.find(s=>s.id===existingTxn.linkedSharedId) : null;
+      if(linkedShared){
+        splitCheck.checked = true;
+        splitAmountWrap.style.display = 'block';
+        splitAmountInput.value = linkedShared.amount;
+      }
     } else if(type === 'income'){
       catLabel.textContent = 'Category';
       state.categories.income.forEach(c => catGrid.appendChild(catOptEl(c, existingTxn && existingTxn.categoryId)));
@@ -1685,6 +1942,20 @@
   }
 
   formOverlay.addEventListener('click', e => { if(e.target===formOverlay) formOverlay.classList.remove('active'); });
+
+  document.getElementById('f_splitCheck').addEventListener('change', function(){
+    const wrap = document.getElementById('f_splitAmountWrap');
+    const input = document.getElementById('f_splitAmount');
+    if(this.checked){
+      wrap.style.display = 'block';
+      if(!input.value){
+        const total = parseFloat(document.getElementById('f_amount').value) || 0;
+        input.value = total ? Math.round((total/2)*100)/100 : '';
+      }
+    } else {
+      wrap.style.display = 'none';
+    }
+  });
 
   /* ---------- Inline calculator for amount field ---------- */
   const calcPanel = document.getElementById('calcPanel');
@@ -1750,6 +2021,8 @@
     const selectedCat = document.querySelector('#f_categoryGrid .cat-opt.selected');
 
     let txn = {id: editingTxnId || uid(), type: currentTxnType, amount, date, note, tags};
+    const oldTxn = editingTxnId ? state.transactions.find(t=>t.id===editingTxnId) : null;
+    if(oldTxn && oldTxn.linkedSharedId) txn.linkedSharedId = oldTxn.linkedSharedId;
 
     if(currentTxnType === 'expense' || currentTxnType === 'income'){
       if(!selectedCat){ toast('Pick a category'); return; }
@@ -1790,6 +2063,27 @@
       if(bill) bill.lastPaidCycleStart = toISODate(viewCycleStart);
       prefillRecurringBillId = null;
     }
+
+    // keep the linked split-tracker entry (if any) in sync with this expense
+    if(currentTxnType === 'expense'){
+      const splitChecked = document.getElementById('f_splitCheck').checked;
+      const splitAmt = parseFloat(document.getElementById('f_splitAmount').value);
+      if(splitChecked && splitAmt > 0){
+        const desc = txn.categoryId + (txn.note ? ' - ' + txn.note : '');
+        if(txn.linkedSharedId){
+          const s = state.shared.find(x=>x.id===txn.linkedSharedId);
+          if(s){ s.amount = splitAmt; s.description = desc; s.date = txn.date; s.payer = 'me'; }
+        } else {
+          const newEntry = {id: uid(), amount: splitAmt, description: desc, date: txn.date, payer: 'me', linkedTxnId: txn.id};
+          state.shared.push(newEntry);
+          txn.linkedSharedId = newEntry.id;
+        }
+      } else if(txn.linkedSharedId){
+        state.shared = state.shared.filter(s=>s.id!==txn.linkedSharedId);
+        delete txn.linkedSharedId;
+      }
+    }
+
     persistAll();
     formOverlay.classList.remove('active');
     renderAll();
@@ -1799,6 +2093,10 @@
   document.getElementById('txnDeleteBtn').addEventListener('click', () => {
     if(!editingTxnId) return;
     if(!confirm('Delete this transaction?')) return;
+    const oldTxn = state.transactions.find(t=>t.id===editingTxnId);
+    if(oldTxn && oldTxn.linkedSharedId){
+      state.shared = state.shared.filter(s=>s.id!==oldTxn.linkedSharedId);
+    }
     state.transactions = state.transactions.filter(t=>t.id!==editingTxnId);
     persistAll();
     formOverlay.classList.remove('active');
